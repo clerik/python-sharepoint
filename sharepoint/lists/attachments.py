@@ -1,10 +1,11 @@
-from sharepoint.xml import namespaces, SP
+from sharepoint.client import SharePointSoapClient
 from sharepoint.lists.definitions import LIST_WEBSERVICE
+from sharepoint.xml import namespaces, SP
 
 
 class SharePointAttachments(object):
-    def __init__(self, opener, list_id, row_id):
-        self.opener = opener
+    def __init__(self, client: SharePointSoapClient, list_id, row_id):
+        self.client = client
         self.list_id, self.row_id = list_id, row_id
 
     def __iter__(self):
@@ -15,7 +16,7 @@ class SharePointAttachments(object):
         """
         xml = SP.GetAttachmentCollection(SP.listName(self.list_id),
                                          SP.listItemID(str(self.row_id)))
-        response = self.opener.post_soap(
+        response = self.client.post_soap(
             LIST_WEBSERVICE, xml,
             soapaction='http://schemas.microsoft.com/sharepoint/soap/GetAttachmentCollection')
         for url in response.xpath('//sp:Attachment', namespaces=namespaces):
@@ -28,7 +29,7 @@ class SharePointAttachments(object):
         raise NotImplementedError
 
     def open(self, url):
-        return self.opener.open(url)
+        return self.client.open(url)
 
 
 class SharePointAttachment(object):
@@ -46,4 +47,3 @@ class SharePointAttachment(object):
 
     def __repr__(self):
         return "<{0} '{1}'>".format(type(self).__name__, self.url)
-

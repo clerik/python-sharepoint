@@ -1,43 +1,42 @@
 import collections
 import re
 
-from six import text_type
-from six.moves.urllib.parse import quote
-from six.moves.urllib.request import Request
-from six.moves.urllib.error import HTTPError
-
 from lxml import etree
 from lxml.builder import E
+from requests import HTTPError
+from six import text_type
+from six.moves.urllib.parse import quote
 
-from sharepoint.xml import SP, namespaces, OUT
+from sharepoint.client import SharePointSoapClient
+from sharepoint.exceptions import UpdateFailedError
 from sharepoint.lists import moderation
-from sharepoint.lists.types import type_mapping, default_type, UserField, LookupField
 from sharepoint.lists.attachments import SharePointAttachments
 from sharepoint.lists.definitions import LIST_WEBSERVICE, LIST_TEMPLATES
-from sharepoint.exceptions import UpdateFailedError
+from sharepoint.lists.types import type_mapping, default_type, UserField, LookupField
+from sharepoint.xml import SP, namespaces, OUT
 
 uuid_re = re.compile(r'^\{?([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})\}?$')
 
 
 class SharePointLists(object):
-    def __init__(self, opener):
-        self.opener = opener
+    def __init__(self, client: SharePointSoapClient):
+        self.client = client
 
     @property
     def all_lists(self):
         if not hasattr(self, '_all_lists'):
             xml = SP.GetListCollection()
-            result = self.opener.post_soap(LIST_WEBSERVICE, xml)
-    
+            result = self.client.post_soap(LIST_WEBSERVICE, xml)
+
             self._all_lists = []
             for list_element in result.xpath('sp:GetListCollectionResult/sp:Lists/sp:List', namespaces=namespaces):
-                self._all_lists.append(SharePointList(self.opener, self, list_element))
-            
+                self._all_lists.append(SharePointList(self.client, self, list_element))
+
             # Explicitly request information about the UserInfo list.
             # This can be accessed with the name "User Information List"
-            result = self.opener.post_soap(LIST_WEBSERVICE, SP.GetList(SP.listName("UserInfo")))
+            result = self.client.post_soap(LIST_WEBSERVICE, SP.GetList(SP.listName("UserInfo")))
             list_element = result.xpath('.//sp:List', namespaces=namespaces)[0]
-            self._all_lists.append(SharePointList(self.opener, self, list_element))
+            self._all_lists.append(SharePointList(self.client, self, list_element))
 
         return self._all_lists
 
@@ -46,7 +45,7 @@ class SharePointLists(object):
         Removes a list from the site.
         """
         xml = SP.DeleteList(SP.listName(list.id))
-        self.opener.post_soap(LIST_WEBSERVICE, xml,
+        self.client.post_soap(LIST_WEBSERVICE, xml,
                               soapaction='http://schemas.microsoft.com/sharepoint/soap/DeleteList')
         self.all_lists.remove(list)
 
@@ -65,10 +64,10 @@ class SharePointLists(object):
         xml = SP.AddList(SP.listName(name),
                          SP.description(description),
                          SP.templateID(text_type(template)))
-        result = self.opener.post_soap(LIST_WEBSERVICE, xml,
+        result = self.client.post_soap(LIST_WEBSERVICE, xml,
                                        soapaction='http://schemas.microsoft.com/sharepoint/soap/AddList')
         list_element = result.xpath('sp:AddListResult/sp:List', namespaces=namespaces)[0]
-        self._all_lists.append(SharePointList(self.opener, self, list_element))
+        self._all_lists.append(SharePointList(self.client, self, list_element))
 
     def __iter__(self):
         return iter(self.all_lists)
@@ -108,8 +107,8 @@ class SharePointLists(object):
 
 
 class SharePointList(object):
-    def __init__(self, opener, lists, settings):
-        self.opener = opener
+    def __init__(self, client, lists, settings):
+        self.client = client
         self.lists = lists
         self._deleted_rows = set()
         self._settings, self._meta = settings, None
@@ -133,10 +132,10 @@ class SharePointList(object):
     def settings(self):
         if self._settings is None or not len(self._settings):
             xml = SP.GetList(SP.listName(self.id))
-            response = self.opener.post_soap(LIST_WEBSERVICE, xml)
+            response = self.client.post_soap(LIST_WEBSERVICE, xml)
             self._settings = response[0][0]
         return self._settings
-    
+
     @property
     def moderation(self):
         if self._meta['EnableModeration'] != 'True':
@@ -159,13 +158,13 @@ class SharePointList(object):
         for field_group in field_groups:
             # Request all fields, not just the ones in the default view
             view_fields = E.ViewFields(*(E.FieldRef(Name=field.name) for field in field_group))
-            #query_options = E.QueryOptions(E.ViewAttributes(Scope="Recursive"))
+            # query_options = E.QueryOptions(E.ViewAttributes(Scope="Recursive"))
             query_options = E.QueryOptions(E.Folder(folder))
             xml = SP.GetListItems(SP.listName(self.id),
                                   SP.rowLimit("100000"),
                                   SP.viewFields(view_fields),
                                   SP.queryOptions(query_options))
-            response = self.opener.post_soap(LIST_WEBSERVICE, xml)
+            response = self.client.post_soap(LIST_WEBSERVICE, xml)
             for row in list(response[0][0][0]):
                 attrib = attribs[row.attrib['ows_ID']]
                 attrib.update(row.attrib)
@@ -203,7 +202,7 @@ class SharePointList(object):
         The class for a row in this list.
         """
         if not hasattr(self, '_row_class'):
-            attrs = {'fields': self.fields, 'list': self, 'opener': self.opener}
+            attrs = {'fields': self.fields, 'list': self, 'client': self.client}
             for field in self.fields.values():
                 attrs[field.name] = field.descriptor
             self._row_class = type('SharePointListRow', (SharePointListRow,), attrs)
@@ -249,7 +248,7 @@ class SharePointList(object):
         self.rows  # Make sure self._rows exists.
         self._rows.append(row)
         return row
-    
+
     def append_from(self, other_list):
         for row in other_list.rows:
             self.append(row.as_row(self.Row))
@@ -307,7 +306,7 @@ class SharePointList(object):
         if len(batches) == 0:
             return
 
-        response = self.opener.post_soap(LIST_WEBSERVICE, xml,
+        response = self.client.post_soap(LIST_WEBSERVICE, xml,
                                          soapaction='http://schemas.microsoft.com/sharepoint/soap/UpdateListItems')
 
         for result in response.xpath('.//sp:Result', namespaces=namespaces):
@@ -333,6 +332,9 @@ class SharePointList(object):
 
 class SharePointListRow(object):
     # fields, list and opener are added as class attributes in SharePointList.Row
+    client = None
+    fields = None
+    list = None
 
     def __init__(self, row=None, attrib=None):
         self._update(row, attrib, clear=True)
@@ -403,7 +405,8 @@ class SharePointListRow(object):
                 fields_element.append(field.as_xml(self, data, **kwargs))
         if transclude_xml and self.is_file and self._data.get('DocIcon') == 'xml':
             try:
-                content = etree.parse(self.open()).getroot()
+                content = etree.parse(self.client.open(
+                    quote(self.list.meta['Title']) + '/' + quote(self.LinkFilename.encode('utf-8')))).getroot()
             except HTTPError:
                 content_element = OUT('content', missing='true')
             else:
@@ -431,14 +434,8 @@ class SharePointListRow(object):
         field_names -= {f for f in field_names if f.startswith('_')}
         return row(self.as_dict(with_immutable=False, field_names=field_names))
 
-    def open(self):
-        url = self.opener.relative(quote(self.list.meta['Title']) + '/' + quote(self.LinkFilename.encode('utf-8')))
-        request = Request(url)
-        request.add_header('Translate', 'f')
-        return self.opener.open(request)
-
     @property
     def attachments(self):
         if not hasattr(self, '_attachments'):
-            self._attachments = SharePointAttachments(self.opener, self.list.id, self.id)
+            self._attachments = SharePointAttachments(self.client, self.list.id, self.id)
         return self._attachments
