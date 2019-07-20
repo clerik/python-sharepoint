@@ -19,6 +19,7 @@ class PreemptiveBasicAuthHandler(BaseHandler):
 
         request.add_unredirected_header('Authorization', auth)
         return request
+
     https_request = http_request
 
 

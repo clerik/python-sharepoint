@@ -4,10 +4,10 @@ import warnings
 
 from six import text_type
 
-from ..xml import OUT
+from . import moderation
 from ..users import SharePointUser
 from ..utils import decode_entities
-from . import moderation
+from ..xml import OUT
 
 empty_values = ('', None)
 
@@ -69,23 +69,23 @@ class Field(object):
         if self.multi:
             values, start, pos = [], 0, -1
             while True:
-                pos = value.find(';', pos+1)
+                pos = value.find(';', pos + 1)
                 if pos == -1:
                     values.append(value[start:].replace(';;', ';'))
                     break
-                elif value[pos:pos+2] == ';;':
+                elif value[pos:pos + 2] == ';;':
                     pos += 2
                     continue
-                elif value[pos:pos+2] == ';#':
+                elif value[pos:pos + 2] == ';#':
                     values.append(value[start:pos].replace(';;', ';'))
                     start = pos = pos + 2
                 else:
                     pos += 2
-                    warnings.warn("Upexpected character after ';': {0}".format(value[pos+1]))
+                    warnings.warn("Upexpected character after ';': {0}".format(value[pos + 1]))
                     continue
 
             if self.group_multi is not None:
-                values = [values[i:i+self.group_multi] for i in range(0, len(values), self.group_multi)]
+                values = [values[i:i + self.group_multi] for i in range(0, len(values), self.group_multi)]
 
                 # if we have [['']], then remove the last entry
                 if values and values[-1] and not values[-1][0]:
@@ -94,7 +94,7 @@ class Field(object):
             else:
                 return [self._parse(v) for v in values if v not in empty_values]
         elif self.group_multi:
-            values = value.split(';#', self.group_multi-1)
+            values = value.split(';#', self.group_multi - 1)
             return self._parse(values)
         else:
             return self._parse(value)
@@ -137,6 +137,7 @@ class Field(object):
             descriptor_class = (MultiFieldDescriptor if self.multi else self.descriptor_class)
             self._descriptor = descriptor_class(self, self.immutable)
         return self._descriptor
+
     descriptor_class = FieldDescriptor
 
     def descriptor_get(self, row, value):
@@ -156,10 +157,10 @@ class Field(object):
         else:
             field_element.append(self._as_xml(row, value, **kwargs))
         return field_element
-    
+
     def _as_xml(self, row, value, **kwargs):
         return OUT('text', text_type(value))
-    
+
     def __repr__(self):
         return u"<%s '%s'>" % (type(self).__name__, self.name)
 
@@ -189,8 +190,8 @@ class TextField(Field):
 
     def is_equal(self, new, original):
         if self.rich_text and \
-           isinstance(new, str) and \
-           isinstance(original, str):
+                isinstance(new, str) and \
+                isinstance(original, str):
             return decode_entities(new) == decode_entities(original)
         return new == original
 
@@ -393,7 +394,7 @@ class UserField(Field):
 
     def _unparse(self, value):
         return [text_type(value['id']), value.get('name', '')]
-    
+
     def descriptor_set(self, row, value):
         print(value, type(value))
         if value is None:
@@ -418,7 +419,7 @@ class UserMultiField(UserField):
 class CalculatedField(Field):
     group_multi = 2
     immutable = True
-    
+
     types = {'float': float}
     type_names = {float: 'float',
                   str: 'text',
@@ -440,7 +441,7 @@ class CalculatedField(Field):
 class ModerationStatusField(Field):
     group_multi = 2
     immutable = True
-    
+
     def _parse(self, value):
         return moderation.moderation_statuses[int(value[0])]
 

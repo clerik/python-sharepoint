@@ -22,4 +22,3 @@ LIST_TEMPLATES = {
     'Survey': 102,
     'Tasks': 107
 }
-

@@ -1,6 +1,5 @@
 from lxml import etree
 from lxml.builder import E
-
 from six import text_type
 from six.moves.urllib.error import HTTPError
 from six.moves.urllib.parse import urlparse, parse_qs
@@ -19,7 +18,7 @@ class SharePointUsers(object):
         self._users = {}
         self._user_searches = {}
         self._resolved_principals = {}
-    
+
     def __getitem__(self, key):
         key = int(key)
         if key not in self._users:

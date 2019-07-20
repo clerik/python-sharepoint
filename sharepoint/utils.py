@@ -7,6 +7,7 @@ try:
 except ImportError:
     from htmlentitydefs import name2codepoint
 
+
 ##
 # Removes HTML or XML character references and entities from a text string.
 #
@@ -33,4 +34,5 @@ def decode_entities(text):
             except KeyError:
                 pass
         return text  # leave as is
+
     return re.sub("&#?\w+;", fixup, text)

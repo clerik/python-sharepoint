@@ -1,5 +1,4 @@
 from lxml.builder import E
-
 from six import text_type
 
 from sharepoint.xml import SP, namespaces
@@ -17,6 +16,7 @@ class ModerationStatus(object):
     def __unicode__(self):
         return self.label
 
+
 APPROVED = ModerationStatus(0, 'approved')
 REJECTED = ModerationStatus(1, 'rejected')
 PENDING = ModerationStatus(2, 'pending')
@@ -33,6 +33,7 @@ moderation_statuses = {0: APPROVED,
 def _moderation_status_filter(status):
     def status_filter(self):
         return (r for r in self._list.rows if r._ModerationStatus == status)
+
     status_filter.__name__ = status.label
     return property(status_filter)
 
@@ -40,7 +41,7 @@ def _moderation_status_filter(status):
 class Moderation(object):
     def __init__(self, list):
         self._list = list
-    
+
     approved = _moderation_status_filter(APPROVED)
     rejected = _moderation_status_filter(REJECTED)
     pending = _moderation_status_filter(PENDING)
@@ -52,10 +53,10 @@ class Moderation(object):
 
     def set_status(self, rows, status, comment=None):
         rows_by_batch_id, batch_id = {}, 1
-        
+
         if isinstance(status, int):
             status = moderation_statuses[status]
-        
+
         batches = E.Batch(ListVersion='1', OnError='Return')
         # Here's the root element of our SOAP request.
         xml = SP.UpdateListItems(SP.listName(self._list.id), SP.updates(batches))
@@ -63,7 +64,7 @@ class Moderation(object):
         if comment:
             comment = E.Field(text_type(comment),
                               Name='_ModerationComment')
-        
+
         for row in rows:
             batch = E.Method(E.Field(text_type(row.id),
                                      Name='ID'),
@@ -79,7 +80,7 @@ class Moderation(object):
         response = self._list.opener.post_soap(
             LIST_WEBSERVICE, xml,
             soapaction='http://schemas.microsoft.com/sharepoint/soap/UpdateListItems')
-        
+
         for result in response.xpath('.//sp:Result', namespaces=namespaces):
             batch_id, batch_result = result.attrib['ID'].split(',')
             row = rows_by_batch_id[int(batch_id)]
