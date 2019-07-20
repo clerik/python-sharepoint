@@ -8,3 +8,5 @@ MANIFEST
 .project
 .pydevproject
 .settings
+.idea/
+venv/
