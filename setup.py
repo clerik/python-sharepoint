@@ -23,5 +23,4 @@ setup(name='sharepoint',
                    'Topic :: Internet :: WWW/HTTP',
                    'Topic :: Office/Business :: Groupware'],
       keywords=['SharePoint'],
-      install_requires=['lxml', 'six'])
-
+      install_requires=['lxml', 'six', 'requests', 'requests_ntlm'])
