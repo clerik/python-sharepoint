@@ -2,6 +2,7 @@ import functools
 
 import requests
 from lxml import etree
+from requests import HTTPError
 from six.moves.urllib.parse import urljoin
 
 from .xml import soap_body, namespaces
@@ -36,7 +37,11 @@ class SharePointSoapClient(object):
                                     headers=headers,
                                     timeout=self.timeout,
                                     auth=self.auth)
-        parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
-        xml = response.text.encode('utf-8')
-        doc = etree.fromstring(xml, parser=parser)
-        return doc.xpath('/soap:Envelope/soap:Body/*', namespaces=namespaces)[0]
+
+        if 200 >= response.status_code < 400:
+            parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
+            xml = response.text.encode('utf-8')
+            doc = etree.fromstring(xml, parser=parser)
+            return doc.xpath('/soap:Envelope/soap:Body/*', namespaces=namespaces)[0]
+        else:
+            raise HTTPError(response.status_code)
