@@ -1,4 +1,7 @@
-from .auth import basic_auth_opener
+from requests.auth import HTTPBasicAuth, HTTPDigestAuth, HTTPProxyAuth
+from requests_ntlm import HttpNtlmAuth
+
+from .client import SharePointSoapClient
 from .site import SharePointSite
 
 
@@ -32,6 +35,7 @@ def main():
     parser.add_option('-u', '--username', dest='username', help='Username')
     parser.add_option('-p', '--password', dest='password', help='Password')
     parser.add_option('-c', '--credentials', dest='credentials', help="File containing 'username:password'.")
+    parser.add_option('-a', '--auth', dest='auth', help='Set the authentication', default='basic')
 
     parser.add_option('-n', '--pretty-print', dest='pretty_print', action='store_true', default=True)
     parser.add_option('-N', '--no-pretty-print', dest='pretty_print', action='store_false')
@@ -71,7 +75,7 @@ def main():
         sys.exit(ExitCodes.MISSING_ARGUMENT)
 
     if options.credentials:
-        username, password = open(os.path.expanduser(options.credentials)).read().strip().split(':', 1)    
+        username, password = open(os.path.expanduser(options.credentials)).read().strip().split(':', 1)
     else:
         username, password = options.username, options.password
 
@@ -81,8 +85,19 @@ def main():
         from getpass import getpass
         password = getpass()
 
-    opener = basic_auth_opener(options.site_url, username, password)
-    site = SharePointSite(options.site_url, opener, timeout=options.timeout)
+    auth = HTTPBasicAuth(username, password)
+
+    if options.auth == 'ntlm':
+        auth = HttpNtlmAuth(username, password)
+    elif options.auth == 'digest':
+        auth = HTTPDigestAuth(username, password)
+    elif options.auth == 'proxy':
+        auth = HTTPProxyAuth(username, password)
+    elif options.auth != 'basic':
+        sys.stdout.write('Unknown auth type {}'.format(options.auth))
+
+    client = SharePointSoapClient(options.site_url, timeout=options.timeout, auth=auth)
+    site = SharePointSite(client)
 
     if not len(args) == 1:
         sys.stderr.write("You must provide an action. Use -h for more information.\n")
