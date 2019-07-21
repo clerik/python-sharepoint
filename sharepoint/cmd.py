@@ -141,8 +141,8 @@ def main():
         sys.exit(1)
 
     if xml is not None:
-        sys.stdout.write(etree.tostring(xml, pretty_print=options.pretty_print))
+        sys.stdout.write(etree.tostring(xml, pretty_print=options.pretty_print).decode('utf-8'))
+
 
 if __name__ == '__main__':
     main()
-

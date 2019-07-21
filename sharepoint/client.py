@@ -36,4 +36,7 @@ class SharePointSoapClient(object):
                                     headers=headers,
                                     timeout=self.timeout,
                                     auth=self.auth)
-        return etree.parse(response).xpath('/soap:Envelope/soap:Body/*', namespaces=namespaces)[0]
+        parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
+        xml = response.text.encode('utf-8')
+        doc = etree.fromstring(xml, parser=parser)
+        return doc.xpath('/soap:Envelope/soap:Body/*', namespaces=namespaces)[0]
