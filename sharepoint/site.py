@@ -12,13 +12,13 @@ class SharePointSite(object):
 
     @property
     def lists(self):
-        if not hasattr(self, '_lists'):
+        if not hasattr(self, '_lists') or self._lists is None:
             self._lists = SharePointLists(self.client)
         return self._lists
 
     @property
     def users(self):
-        if not hasattr(self, '_users'):
+        if not hasattr(self, '_users') or self._users is None:
             self._users = SharePointUsers(self.client)
         return self._users
 
